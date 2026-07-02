@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SYSTEM FAILURE</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            cursor: none;
+        }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'Courier New', 'Consolas', monospace;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Matrix Rain Canvas */
+        #matrixCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            opacity: 0.3;
+        }
+
+        /* Blue Screen Overlay */
+        #blueScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0a0e27;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', 'Courier New', monospace;
+        }
+
+        .bsod-content {
+            text-align: center;
+            max-width: 900px;
+            padding: 40px;
+        }
+
+        .bsod-emoji {
+            font-size: 120px;
+            margin-bottom: 20px;
+            animation: pulse 1.5s ease infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.05); }
+        }
+
+        .bsod-title {
+            color: #fff;
+            font-size: 42px;
+            font-weight: 300;
+            margin-bottom: 30px;
+            letter-spacing: 2px;
+        }
+
+        .bsod-error {
+            color: #ff4444;
+            font-size: 22px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .bsod-code {
+            color: #aaa;
+            font-size: 16px;
+            margin-bottom: 40px;
+            letter-spacing: 1px;
+        }
+
+        .bsod-progress {
+            width: 400px;
+            max-width: 80vw;
+            height: 6px;
+            background: #1a1a3a;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .bsod-progress-bar {
+            height: 100%;
+            background: #00ff41;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 20px #00ff41;
+        }
+
+        .bsod-percent {
+            color: #00ff41;
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 0 0 30px #00ff41;
+        }
+
+        .bsod-info {
+            color: #888;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* Floating Alert */
+        #alertBox {
+            position: fixed;
+            z-index: 100;
+            background: rgba(255, 0, 0, 0.95);
+            color: #fff;
+            padding: 20px 30px;
+            border-radius: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            pointer-events: none;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.2s ease;
+            border: 3px solid #ff0000;
+            box-shadow: 0 0 40px rgba(255, 0, 0, 0.8), 0 0 80px rgba(255, 0, 0, 0.4);
+            text-shadow: 0 0 10px #fff;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) scale(0.5);
+        }
+
+        #alertBox.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        #alertBox .icon {
+            font-size: 50px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        /* Error Popup Windows */
+        .error-popup {
+            position: fixed;
+            z-index: 99;
+            background: #1a1a2e;
+            border: 2px solid #ff4444;
+            border-radius: 8px;
+            padding: 15px 20px;
+            color: #ff4444;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            pointer-events: none;
+            opacity: 0;
+            transform: scale(0);
+            transition: all 0.3s ease;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.4);
+            max-width: 350px;
+        }
+
+        .error-popup.show {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .error-popup .error-title {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .error-popup .error-body {
+            color: #ccc;
+            font-size: 12px;
+        }
+
+        /* Fake terminal text */
+        .terminal-overlay {
+            position: fixed;
+            z-index: 50;
+            color: #ff4444;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.1s ease;
+            text-shadow: 0 0 10px #ff0000;
+            white-space: nowrap;
+        }
+
+        /* Glitch effect */
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-3px, 3px); }
+            40% { transform: translate(-3px, -3px); }
+            60% { transform: translate(3px, 3px); }
+            80% { transform: translate(3px, -3px); }
+            100% { transform: translate(0); }
+        }
+
+        .glitch {
+            animation: glitch 0.3s ease;
+        }
+
+        /* Screen flicker */
+        @keyframes flicker {
+            0% { opacity: 1; }
+            5% { opacity: 0.8; }
+            10% { opacity: 1; }
+            15% { opacity: 0.9; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            82% { opacity: 0.5; }
+            84% { opacity: 1; }
+            100% { opacity: 1; }
+        }
+
+        .flicker {
+            animation: flicker 0.5s ease;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 600px) {
+            .bsod-emoji { font-size: 80px; }
+            .bsod-title { font-size: 24px; }
+            .bsod-error { font-size: 16px; }
+            .bsod-percent { font-size: 36px; }
+            #alertBox { font-size: 18px; padding: 15px 20px; }
+            #alertBox .icon { font-size: 35px; }
+            .error-popup { font-size: 11px; max-width: 250px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Matrix Rain Canvas -->
+    <canvas id="matrixCanvas"></canvas>
+
+    <!-- Blue Screen of Death -->
+    <div id="blueScreen">
+        <div class="bsod-content">
+            <div class="bsod-emoji">💀</div>
+            <div class="bsod-title">Your PC ran into a problem and needs to restart.</div>
+            <div class="bsod-error">SYSTEM_SERVICE_EXCEPTION</div>
+            <div class="bsod-code">Stop code: 0x0000003B (0x00000000C0000005, 0xFFFFF80003254780)</div>
+            <div class="bsod-progress">
+                <div class="bsod-progress-bar" id="progressBar" style="width: 0%;"></div>
+            </div>
+            <div class="bsod-percent" id="percentText">0%</div>
+            <div class="bsod-info">
+                We're collecting some error info, and then we'll restart for you.<br>
+                <span style="color:#666;">0% complete</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Alert -->
+    <div id="alertBox">
+        <span class="icon">⚠️</span>
+        <span id="alertText">ACCESS DENIED</span>
+    </div>
+
+    <script>
+        // ============ MATRIX RAIN ============
+        const canvas = document.getElementById('matrixCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const katakana = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+        const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const nums = '0123456789';
+        const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?/';
+        const alphabet = katakana + latin + nums + symbols;
+
+        const fontSize = 16;
+        let columns = canvas.width / fontSize;
+
+        const rainDrops = [];
+
+        for (let x = 0; x < columns; x++) {
+            rainDrops[x] = Math.random() * canvas.height;
+        }
+
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#0F0';
+            ctx.font = fontSize + 'px monospace';
+
+            for (let i = 0; i < rainDrops.length; i++) {
+                const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+
+                if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    rainDrops[i] = 0;
+                }
+                rainDrops[i]++;
+            }
+        }
+
+        setInterval(drawMatrix, 30);
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            columns = canvas.width / fontSize;
+        });
+
+        // ============ PROGRESS BAR ============
+        let progress = 0;
+        const progressBar = document.getElementById('progressBar');
+        const percentText = document.getElementById('percentText');
+
+        function updateProgress() {
+            if (progress < 100) {
+                const increment = Math.random() * 3;
+                progress = Math.min(progress + increment, 99);
+                progressBar.style.width = progress + '%';
+                percentText.textContent = Math.floor(progress) + '% complete';
+                
+                const delay = Math.random() * 500 + 200;
+                setTimeout(updateProgress, delay);
+            }
+        }
+
+        updateProgress();
+
+        // ============ KEYBOARD INTERACTION ============
+        const alertBox = document.getElementById('alertBox');
+        const alertText = document.getElementById('alertText');
+        const blueScreen = document.getElementById('blueScreen');
+
+        const messages = [
+            'ACCESS DENIED',
+            'SYSTEM HACKED',
+            'DELETING FILES...',
+            'FIREWALL BREACHED',
+            'DATA CORRUPTED',
+            'UNAUTHORIZED ACCESS',
+            'SECURITY FAILURE',
+            'MEMORY DUMP',
+            'KERNEL PANIC',
+            'FATAL ERROR',
+            'SYSTEM32 DELETED',
+            'ENCRYPTION FAILED',
+            'ROOT ACCESS LOST',
+            'BOOT SECTOR DAMAGED',
+            'CRITICAL PROCESS DIED',
+            'NTFS CORRUPTED',
+            'BIOS COMPROMISED',
+            'REGISTRY DESTROYED',
+            'PASSWORD STOLEN',
+            'IDENTITY COMPROMISED',
+        ];
+
+        const popupMessages = [
+            { title: '❌ ERROR', body: 'System32\\config\\system is corrupt and unreadable.' },
+            { title: '🔒 LOCKED', body: 'This device has been locked for security reasons.' },
+            { title: '💀 FATAL', body: 'A critical system process has been terminated.' },
+            { title: '⚠️ WARNING', body: 'Virus detected! Windows Defender has been disabled.' },
+            { title: '🗑️ DELETING', body: 'C:\\Windows\\System32\\*.* is being deleted...' },
+            { title: '🔥 BREACH', body: 'Firewall breached. All ports are now open.' },
+            { title: '💾 CORRUPT', body: 'Master Boot Record corrupted. System cannot boot.' },
+            { title: '🔐 ENCRYPTED', body: 'All files have been encrypted. Send Bitcoin to unlock.' },
+        ];
+
+        let keyPressCount = 0;
+        let alertTimeout;
+
+        function showAlert() {
+            keyPressCount++;
+            
+            // Pick random message
+            const msg = messages[Math.floor(Math.random() * messages.length)];
+            alertText.textContent = msg;
+            
+            // Show alert
+            alertBox.classList.add('show');
+            
+            // Add glitch effect to screen
+            blueScreen.classList.add('glitch');
+            setTimeout(() => blueScreen.classList.remove('glitch'), 300);
+            
+            // Flicker effect
+            document.body.classList.add('flicker');
+            setTimeout(() => document.body.classList.remove('flicker'), 500);
+            
+            // Update progress on keypress
+            if (progress < 99) {
+                progress += Math.random() * 5 + 2;
+                progress = Math.min(progress, 99);
+                progressBar.style.width = progress + '%';
+                percentText.textContent = Math.floor(progress) + '% complete';
+            }
+            
+            // Show random error popup
+            if (keyPressCount % 3 === 0) {
+                showErrorPopup();
+            }
+            
+            // Hide alert after delay
+            clearTimeout(alertTimeout);
+            alertTimeout = setTimeout(() => {
+                alertBox.classList.remove('show');
+            }, 1500);
+            
+            // Vibrate on mobile
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate([30, 20, 30]);
+            }
+        }
+
+        // Error popups
+        function showErrorPopup() {
+            const popup = document.createElement('div');
+            popup.className = 'error-popup';
+            
+            const msg = popupMessages[Math.floor(Math.random() * popupMessages.length)];
+            
+            popup.innerHTML = `
+                <div class="error-title">${msg.title}</div>
+                <div class="error-body">${msg.body}</div>
+            `;
+            
+            // Random position
+            const x = Math.random() * (window.innerWidth - 350);
+            const y = Math.random() * (window.innerHeight - 100);
+            
+            popup.style.left = Math.max(10, x) + 'px';
+            popup.style.top = Math.max(10, y) + 'px';
+            
+            document.body.appendChild(popup);
+            
+            // Animate in
+            requestAnimationFrame(() => {
+                popup.classList.add('show');
+            });
+            
+            // Remove after delay
+            setTimeout(() => {
+                popup.classList.remove('show');
+                setTimeout(() => popup.remove(), 300);
+            }, 2000 + Math.random() * 2000);
+        }
+
+        // Keyboard events
+        document.addEventListener('keydown', function(e) {
+            e.preventDefault();
+            showAlert();
+        });
+
+        // Touch events for mobile
+        document.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            showAlert();
+        });
+
+        // Click events
+        document.addEventListener('click', function(e) {
+            showAlert();
+        });
+
+        // Prevent context menu
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            showAlert();
+        });
+
+        // Prevent common shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (
+                (e.ctrlKey && (e.key === 'w' || e.key === 'W')) ||
+                (e.altKey && e.key === 'F4') ||
+                e.key === 'F5' ||
+                e.key === 'F11' ||
+                e.key === 'Escape' ||
+                (e.ctrlKey && (e.key === 'r' || e.key === 'R')) ||
+                (e.ctrlKey && e.shiftKey && e.key === 'T')
+            ) {
+                e.preventDefault();
+                e.stopPropagation();
+                showAlert();
+                return false;
+            }
+        });
+
+        // Terminal text overlay on random positions
+        setInterval(() => {
+            if (Math.random() > 0.6) {
+                const terminalText = document.createElement('div');
+                terminalText.className = 'terminal-overlay';
+                terminalText.textContent = '> ' + messages[Math.floor(Math.random() * messages.length)] + '...';
+                terminalText.style.left = Math.random() * (window.innerWidth - 300) + 'px';
+                terminalText.style.top = Math.random() * (window.innerHeight - 30) + 'px';
+                document.body.appendChild(terminalText);
+                
+                requestAnimationFrame(() => {
+                    terminalText.style.opacity = '1';
+                });
+                
+                setTimeout(() => {
+                    terminalText.style.opacity = '0';
+                    setTimeout(() => terminalText.remove(), 100);
+                }, 800);
+            }
+        }, 1500);
+
+        // Initial popups
+        setTimeout(showErrorPopup, 1000);
+        setTimeout(showErrorPopup, 2500);
+        setTimeout(showErrorPopup, 4000);
+    </script>
+</body>
+</html>
